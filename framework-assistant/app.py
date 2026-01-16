@@ -405,7 +405,7 @@ def format_framework_display_name(framework: Dict[str, Any]) -> str:
     name = framework.get('name', 'Unknown Framework')
 
     # Check if it's a generic name like "Framework 1" or "Framework 10"
-    if re.match(r'^.+Framework \d+$', name):
+    if re.match(r'^Framework \d+$', name):
         # Try to create a better name from other fields
         use_case = framework.get('use_case', '')
         domains = framework.get('business_domains', '')
