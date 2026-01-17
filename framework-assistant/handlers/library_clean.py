@@ -11,7 +11,6 @@ import streamlit as st
 from components.framework_index import (
     group_frameworks_alphabetically,
     render_framework_list_item,
-    render_jump_links,
     get_framework_navigation,
     render_navigation_buttons,
     get_framework_name_by_id
@@ -41,7 +40,7 @@ def render_framework_library(
         st.session_state.library_search_query = ""
     
     if 'library_expanded_sections' not in st.session_state:
-        st.session_state.library_expanded_sections = set(['A'])  # First section expanded by default
+        st.session_state.library_expanded_sections = set()  # Nothing expanded by default
     
     # Render based on current view
     if st.session_state.library_view == 'detail' and st.session_state.library_framework_id:
@@ -62,7 +61,7 @@ def render_framework_index_page(all_frameworks: List[Dict[str, Any]]) -> None:
         all_frameworks: List of all framework dicts
     """
     # Header
-    st.title("ðŸ“š Framework Library")
+    st.title("Framework Library")
     st.markdown(f"*{len(all_frameworks)} frameworks available*")
     st.markdown("---")
     
@@ -71,7 +70,7 @@ def render_framework_index_page(all_frameworks: List[Dict[str, Any]]) -> None:
     
     with col1:
         search_query = st.text_input(
-            "ðŸ” Search frameworks",
+            "Search frameworks",
             value=st.session_state.library_search_query,
             placeholder="Search by name...",
             key="library_search"
@@ -82,7 +81,7 @@ def render_framework_index_page(all_frameworks: List[Dict[str, Any]]) -> None:
         # Get unique types
         all_types = sorted(set(fw.get('type', 'General') for fw in all_frameworks))
         type_filter = st.selectbox(
-            "ðŸ·ï¸ Type",
+            "Type",
             options=['All'] + all_types,
             key="library_type_filter"
         )
@@ -96,7 +95,7 @@ def render_framework_index_page(all_frameworks: List[Dict[str, Any]]) -> None:
                 all_domains.add(domains[0].strip())
         
         domain_filter = st.selectbox(
-            "ðŸ“Š Domain",
+            "Domain",
             options=['All'] + sorted(all_domains),
             key="library_domain_filter"
         )
@@ -149,9 +148,8 @@ def render_alphabetical_sections(frameworks: List[Dict[str, Any]]) -> None:
     # Group by letter
     grouped = group_frameworks_alphabetically(frameworks)
     
-    # Jump links
-    render_jump_links(list(grouped.keys()))
-    
+    # Jump links - Simple display
+    st.markdown("**Jump to:** " + " | ".join(sorted(grouped.keys())))
     st.markdown("---")
     
     # Render each section
@@ -176,20 +174,20 @@ def render_alphabetical_section(
     col1, col2 = st.columns([6, 1])
     
     with col1:
-        st.markdown(f"### ðŸ”¤ {letter} ({len(frameworks)} frameworks)")
+        st.markdown(f"### {letter} ({len(frameworks)} frameworks)")
     
     with col2:
         # Toggle button
         if is_expanded:
-            if st.button("Collapse â–²", key=f"toggle_{letter}"):
+            if st.button("Collapse", key=f"toggle_{letter}"):
                 st.session_state.library_expanded_sections.remove(letter)
                 st.rerun()
         else:
-            if st.button("Expand â–¼", key=f"toggle_{letter}"):
+            if st.button("Expand", key=f"toggle_{letter}"):
                 st.session_state.library_expanded_sections.add(letter)
                 st.rerun()
     
-    st.markdown("â”" * 50)
+    st.markdown("---")
     
     # Show frameworks if expanded
     if is_expanded:
@@ -234,7 +232,7 @@ def render_filtered_list(frameworks: List[Dict[str, Any]]) -> None:
         return
     
     st.markdown(f"### Search Results ({len(frameworks)})")
-    st.markdown("â”" * 50)
+    st.markdown("---")
     
     # Show all results (paginate if > 50)
     page_size = 50
@@ -274,7 +272,7 @@ def render_framework_detail_page(
     
     if not result:
         st.error("Framework not found.")
-        if st.button("â† Back to Library"):
+        if st.button("Back to Library"):
             st.session_state.library_view = 'index'
             st.rerun()
         return
@@ -285,12 +283,12 @@ def render_framework_detail_page(
     col1, col2 = st.columns([1, 1])
     
     with col1:
-        if st.button("â† Back to Library", key="back_to_library"):
+        if st.button("Back to Library", key="back_to_library"):
             st.session_state.library_view = 'index'
             st.rerun()
     
     with col2:
-        if st.button("Ask about this framework in chat â†’", key="ask_in_chat"):
+        if st.button("Ask about this framework in chat", key="ask_in_chat"):
             # Set up chat with pre-filled query
             st.session_state.prefill_query = f"Tell me more about {framework.get('name')}"
             st.session_state.switch_to_chat = True
@@ -305,7 +303,7 @@ def render_framework_detail_page(
     domains = framework.get('business_domains', '')
     
     st.title(name)
-    st.markdown(f"**{fw_type}** â€¢ **{difficulty.capitalize()}** â€¢ {domains}")
+    st.markdown(f"**{fw_type}** • **{difficulty.capitalize()}** • {domains}")
     
     st.markdown("---")
     
@@ -319,13 +317,7 @@ def render_framework_detail_page(
     # When to use it
     st.markdown("### When to use it")
     symptoms = framework.get('problem_symptoms', 'Not specified.')
-    # Format symptoms as readable text
-    if 'â€¢' in symptoms or '|' in symptoms:
-        # Already formatted
-        st.markdown(symptoms)
-    else:
-        # Plain text
-        st.markdown(symptoms)
+    st.markdown(symptoms)
     
     st.markdown("")
     
@@ -348,7 +340,7 @@ def render_framework_detail_page(
                     related_result = search_engine.get_framework_by_id(rid)
                     if related_result:
                         related_name = related_result.framework_data.get('name', 'Unknown')
-                        if st.button(f"â†’ {related_name}", key=f"related_{rid}"):
+                        if st.button(f"{related_name}", key=f"related_{rid}"):
                             st.session_state.library_framework_id = rid
                             st.rerun()
             else:
@@ -358,20 +350,6 @@ def render_framework_detail_page(
     else:
         st.markdown("### Related frameworks")
         st.markdown("*No related frameworks defined*")
-    
-    st.markdown("---")
-    
-    # Action buttons
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        # Diagnostic button (greyed out)
-        st.button(
-            "Start Diagnostic Flow",
-            disabled=True,
-            key="diagnostic_disabled",
-            use_container_width=True
-        )
     
     st.markdown("---")
     

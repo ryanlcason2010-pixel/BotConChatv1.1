@@ -24,7 +24,7 @@ def render_quick_search(
     """
     if compact:
         # Compact version for sidebar
-        st.markdown("### ðŸ” Quick Find")
+        st.markdown("### Quick Find")
         search_query = st.text_input(
             "Framework name",
             placeholder="Type to search...",
@@ -34,7 +34,7 @@ def render_quick_search(
     else:
         # Full version for main interface
         search_query = st.text_input(
-            "ðŸ” Quick Framework Lookup",
+            "Quick Framework Lookup",
             placeholder="Start typing framework name...",
             key="main_quick_search"
         )
@@ -51,7 +51,7 @@ def render_quick_search(
                 st.markdown("**Top Matches:**")
                 for fw in top_matches:
                     if st.button(
-                        f"â†’ {fw['name']}", 
+                        f"{fw['name']}", 
                         key=f"quick_{fw['id']}_compact",
                         use_container_width=True
                     ):
@@ -60,22 +60,20 @@ def render_quick_search(
                 # Full version with better formatting
                 with st.container():
                     st.markdown("**Top Matches:**")
-                    cols = st.columns([4, 1])
                     
                     for fw in top_matches:
-                        with cols[0]:
-                            if st.button(
-                                f"â†’ {fw['name']}", 
-                                key=f"quick_{fw['id']}",
-                                use_container_width=True
-                            ):
-                                return fw['id']
+                        if st.button(
+                            f"{fw['name']}", 
+                            key=f"quick_{fw['id']}",
+                            use_container_width=True
+                        ):
+                            return fw['id']
             
             # "View all" link
             total_matches = len(matches)
             if total_matches > 5:
                 if st.button(
-                    f"ðŸ“š View all {total_matches} matches in Library â†’",
+                    f"View all {total_matches} matches in Library",
                     key="view_all_matches"
                 ):
                     # Store search query and switch to library tab
@@ -181,49 +179,17 @@ def render_framework_list_item(
     difficulty = framework.get('difficulty_level', 'intermediate')
     fw_type = framework.get('type', 'General')
     
-    # Color coding for difficulty
-    diff_color = {
-        'beginner': 'ðŸŸ¢',
-        'intermediate': 'ðŸŸ ',
-        'advanced': 'ðŸ”´'
-    }.get(difficulty.lower(), 'âšª')
-    
     # Build display text
     if show_metadata:
-        display = f"{name} {diff_color}"
+        display = f"{name} [{difficulty}]"
     else:
         display = name
     
     return st.button(
-        f"â†’ {display}",
+        display,
         key=f"{key_prefix}fw_{framework.get('id')}",
         use_container_width=True
     )
-
-
-def render_jump_links(letters: List[str]) -> Optional[str]:
-    """
-    Render alphabetical jump links.
-    
-    Args:
-        letters: List of available letters
-        
-    Returns:
-        Letter clicked, or None
-    """
-    st.markdown("âš¡ **Jump to:**")
-    
-    # Create columns for letters (show in rows of 13)
-    cols = st.columns(13)
-    clicked_letter = None
-    
-    for i, letter in enumerate(sorted(letters)):
-        col_idx = i % 13
-        with cols[col_idx]:
-            if st.button(letter, key=f"jump_{letter}", use_container_width=True):
-                clicked_letter = letter
-    
-    return clicked_letter
 
 
 def get_framework_navigation(
@@ -281,17 +247,17 @@ def render_navigation_buttons(
     
     with col1:
         if prev_id:
-            label = f"â† Previous"
+            label = "Previous"
             if prev_name:
-                label += f"\n{prev_name}"
+                label += f": {prev_name}"
             if st.button(label, key="nav_prev", use_container_width=True):
                 clicked_id = prev_id
     
     with col3:
         if next_id:
-            label = f"Next â†’"
+            label = "Next"
             if next_name:
-                label += f"\n{next_name}"
+                label += f": {next_name}"
             if st.button(label, key="nav_next", use_container_width=True):
                 clicked_id = next_id
     
