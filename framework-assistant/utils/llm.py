@@ -357,6 +357,11 @@ def _format_framework_display_name(framework: Dict[str, Any]) -> str:
     """
     Format framework name for display, handling generic names.
 
+    This fixes issues where:
+    - "Framework 1", "Framework 10" appear instead of meaningful names
+    - "Layer 3: IT Strategy Framework 4" should be "Layer 3: IT Strategy Framework"
+    - "Technology-Enabled Delivery Framework 4" should be "Technology-Enabled Delivery Framework"
+
     Args:
         framework: Framework data dict
 
@@ -365,8 +370,11 @@ def _format_framework_display_name(framework: Dict[str, Any]) -> str:
     """
     name = framework.get('name', 'Unknown Framework')
 
-    # Check if it's a generic name like "Framework 1" or "Framework 10"
-    if re.match(r'^Framework \d+$', name):
+    # Strip trailing numbers from framework names (e.g., "Framework Name 4" -> "Framework Name")
+    cleaned_name = re.sub(r'\s+\d+$', '', name)
+
+    # Check if it's ONLY a generic name like "Framework" after stripping numbers
+    if re.match(r'^Framework$', cleaned_name) or re.match(r'^Framework \d+$', name):
         # Try to create a better name from other fields
         use_case = framework.get('use_case', '')
         domains = framework.get('business_domains', '')
@@ -384,7 +392,7 @@ def _format_framework_display_name(framework: Dict[str, Any]) -> str:
         else:
             return f"Framework #{framework.get('id', '?')}"
 
-    return name
+    return cleaned_name
 
 
 def format_framework_list(frameworks: List[Dict[str, Any]]) -> str:
@@ -409,7 +417,9 @@ def format_framework_list(frameworks: List[Dict[str, Any]]) -> str:
 
         # If name is generic-derived, lead with use case for context
         original_name = fw.get('name', '')
-        if re.match(r'^Framework \d+$', original_name):
+        # Check if after stripping trailing numbers, it's just "Framework"
+        cleaned_original = re.sub(r'\s+\d+$', '', original_name)
+        if re.match(r'^Framework$', cleaned_original):
             lines.append(f"{i}. **{name}** ({difficulty})")
             lines.append(f"   Domain: {domains}")
             lines.append(f"   Purpose: {use_case}")

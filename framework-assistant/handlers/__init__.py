@@ -7,6 +7,7 @@ This package contains pattern handlers for:
 - details: Framework details
 - sequencing: Framework sequencing
 - comparison: Framework comparison
+- library: Framework Library browsing
 """
 
 from .diagnostic import handle_diagnostic
@@ -14,6 +15,7 @@ from .discovery import handle_discovery
 from .details import handle_details
 from .sequencing import handle_sequencing
 from .comparison import handle_comparison
+from .library import render_framework_library, init_library_state, navigate_to_framework
 
 __all__ = [
     'handle_diagnostic',
@@ -21,4 +23,7 @@ __all__ = [
     'handle_details',
     'handle_sequencing',
     'handle_comparison',
+    'render_framework_library',
+    'init_library_state',
+    'navigate_to_framework',
 ]
