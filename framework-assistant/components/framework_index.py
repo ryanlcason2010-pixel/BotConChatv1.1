@@ -1,302 +1,318 @@
 """
-Framework Index Component.
+Framework Index Components.
 
-Provides quick search functionality and framework index UI components
-for the Framework Library feature.
+Quick search and framework browsing components for sidebar and main interface.
 """
 
-import re
-from typing import Dict, List, Any, Optional
-
+from typing import List, Dict, Any, Optional, Tuple
 import streamlit as st
 
 
-def _clean_framework_name(name: str) -> str:
+def render_quick_search(
+    all_frameworks: List[Dict[str, Any]],
+    compact: bool = False
+) -> Optional[int]:
     """
-    Clean framework name by stripping trailing numbers.
-
+    Render quick framework search component.
+    
     Args:
-        name: Original framework name
-
+        all_frameworks: List of all framework dicts
+        compact: If True, render in compact mode for sidebar
+        
     Returns:
-        Cleaned name without trailing numbers
+        Framework ID if user selected one, None otherwise
     """
-    return re.sub(r'\s+\d+$', '', name or '')
+    if compact:
+        # Compact version for sidebar
+        st.markdown("### ðŸ” Quick Find")
+        search_query = st.text_input(
+            "Framework name",
+            placeholder="Type to search...",
+            key="sidebar_quick_search",
+            label_visibility="collapsed"
+        )
+    else:
+        # Full version for main interface
+        search_query = st.text_input(
+            "ðŸ” Quick Framework Lookup",
+            placeholder="Start typing framework name...",
+            key="main_quick_search"
+        )
+    
+    if search_query and len(search_query) >= 2:
+        # Search for matches
+        matches = fuzzy_search_frameworks(all_frameworks, search_query)
+        
+        if matches:
+            # Show top 5 matches in dropdown
+            top_matches = matches[:5]
+            
+            if compact:
+                st.markdown("**Top Matches:**")
+                for fw in top_matches:
+                    if st.button(
+                        f"â†’ {fw['name']}", 
+                        key=f"quick_{fw['id']}_compact",
+                        use_container_width=True
+                    ):
+                        return fw['id']
+            else:
+                # Full version with better formatting
+                with st.container():
+                    st.markdown("**Top Matches:**")
+                    cols = st.columns([4, 1])
+                    
+                    for fw in top_matches:
+                        with cols[0]:
+                            if st.button(
+                                f"â†’ {fw['name']}", 
+                                key=f"quick_{fw['id']}",
+                                use_container_width=True
+                            ):
+                                return fw['id']
+            
+            # "View all" link
+            total_matches = len(matches)
+            if total_matches > 5:
+                if st.button(
+                    f"ðŸ“š View all {total_matches} matches in Library â†’",
+                    key="view_all_matches"
+                ):
+                    # Store search query and switch to library tab
+                    st.session_state.library_search_query = search_query
+                    st.session_state.switch_to_library = True
+                    st.rerun()
+        else:
+            st.info("No frameworks found matching your search.")
+    
+    return None
 
 
 def fuzzy_search_frameworks(
-    frameworks: List[Dict[str, Any]],
-    query: str,
-    max_results: int = 10
+    frameworks: List[Dict[str, Any]], 
+    query: str
 ) -> List[Dict[str, Any]]:
     """
-    Perform fuzzy search on framework names.
-
-    Uses simple substring matching with scoring based on match position.
-
+    Fuzzy search frameworks by name.
+    
     Args:
         frameworks: List of framework dicts
-        query: Search query string
-        max_results: Maximum number of results to return
-
+        query: Search query
+        
     Returns:
-        List of matching frameworks sorted by relevance
+        List of matching frameworks, sorted by relevance
     """
-    if not query or len(query) < 2:
-        return []
-
-    query_lower = query.lower().strip()
+    query_lower = query.lower()
     matches = []
-
+    
     for fw in frameworks:
-        name = fw.get('name', '')
-        cleaned_name = _clean_framework_name(name)
-        name_lower = cleaned_name.lower()
-
-        # Check for matches
-        if query_lower in name_lower:
-            # Score based on position (earlier = better) and length match
-            position = name_lower.find(query_lower)
-            length_ratio = len(query_lower) / len(name_lower) if name_lower else 0
-
-            # Bonus for exact start match
-            start_bonus = 10 if position == 0 else 0
-
-            score = start_bonus + length_ratio * 5 - position * 0.1
-
-            matches.append({
-                **fw,
-                '_search_score': score,
-                '_display_name': cleaned_name
-            })
-
-    # Sort by score (descending) and return top matches
-    matches.sort(key=lambda x: x.get('_search_score', 0), reverse=True)
-
-    # Deduplicate by cleaned name
-    seen_names = set()
-    unique_matches = []
-    for m in matches:
-        display_name = m.get('_display_name', '')
-        if display_name not in seen_names:
-            seen_names.add(display_name)
-            unique_matches.append(m)
-            if len(unique_matches) >= max_results:
-                break
-
-    return unique_matches
-
-
-def render_quick_search(
-    frameworks: List[Dict[str, Any]],
-    compact: bool = False,
-    key_prefix: str = "quick_search"
-) -> Optional[int]:
-    """
-    Render the quick search component.
-
-    Args:
-        frameworks: List of all frameworks
-        compact: If True, render in compact mode for sidebar
-        key_prefix: Unique key prefix for Streamlit widgets
-
-    Returns:
-        Framework ID if one was selected, None otherwise
-    """
-    selected_fw_id = None
-
-    # Search input
-    placeholder = "Search frameworks..." if compact else "Quick search by name..."
-    search_query = st.text_input(
-        "Search",
-        placeholder=placeholder,
-        key=f"{key_prefix}_input",
-        label_visibility="collapsed" if compact else "visible"
-    )
-
-    if search_query and len(search_query) >= 2:
-        matches = fuzzy_search_frameworks(frameworks, search_query, max_results=5)
-
-        if matches:
-            if compact:
-                # Compact mode: Show as selectbox
-                options = ["Select a framework..."] + [
-                    m.get('_display_name', m.get('name', 'Unknown'))
-                    for m in matches
-                ]
-                selected_idx = st.selectbox(
-                    "Results",
-                    range(len(options)),
-                    format_func=lambda i: options[i],
-                    key=f"{key_prefix}_select",
-                    label_visibility="collapsed"
-                )
-                if selected_idx > 0:
-                    selected_fw_id = matches[selected_idx - 1].get('id')
-            else:
-                # Full mode: Show as clickable list
-                st.markdown("**Matching frameworks:**")
-                for i, match in enumerate(matches):
-                    display_name = match.get('_display_name', match.get('name', 'Unknown'))
-                    fw_type = match.get('type', '')
-                    type_badge = f" ({fw_type})" if fw_type else ""
-
-                    if st.button(
-                        f"{display_name}{type_badge}",
-                        key=f"{key_prefix}_btn_{i}",
-                        use_container_width=True
-                    ):
-                        selected_fw_id = match.get('id')
-
-                # View all link
-                if len(matches) == 5:
-                    st.caption(f"Showing top 5 results. Go to Library tab for full search.")
-        else:
-            st.caption("No matching frameworks found.")
-
-    return selected_fw_id
-
-
-def render_alphabet_jump_links(
-    grouped_frameworks: Dict[str, List[Dict]],
-    key_prefix: str = "alpha_jump"
-) -> Optional[str]:
-    """
-    Render alphabetical jump links for quick navigation.
-
-    Args:
-        grouped_frameworks: Frameworks grouped by first letter
-        key_prefix: Unique key prefix for Streamlit widgets
-
-    Returns:
-        Selected letter if clicked, None otherwise
-    """
-    alphabet = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + ["#"]
-    selected_letter = None
-
-    # Create two rows of letters
-    cols_per_row = 14
-    for row_start in range(0, len(alphabet), cols_per_row):
-        row_letters = alphabet[row_start:row_start + cols_per_row]
-        cols = st.columns(len(row_letters))
-
-        for i, letter in enumerate(row_letters):
-            with cols[i]:
-                # Check if this letter has frameworks
-                has_frameworks = letter in grouped_frameworks and len(grouped_frameworks[letter]) > 0
-
-                if has_frameworks:
-                    if st.button(
-                        letter,
-                        key=f"{key_prefix}_{letter}",
-                        use_container_width=True
-                    ):
-                        selected_letter = letter
-                else:
-                    # Disabled style for empty letters
-                    st.markdown(
-                        f"<span style='color: #888; padding: 5px;'>{letter}</span>",
-                        unsafe_allow_html=True
-                    )
-
-    return selected_letter
+        name = fw.get('name', '').lower()
+        
+        # Exact match (highest priority)
+        if query_lower == name:
+            matches.insert(0, (fw, 100))
+        # Starts with query (high priority)
+        elif name.startswith(query_lower):
+            matches.append((fw, 90))
+        # Contains query (medium priority)
+        elif query_lower in name:
+            matches.append((fw, 70))
+        # Word boundary match (lower priority)
+        elif any(word.startswith(query_lower) for word in name.split()):
+            matches.append((fw, 50))
+    
+    # Sort by score and return frameworks only
+    matches.sort(key=lambda x: x[1], reverse=True)
+    return [fw for fw, score in matches]
 
 
 def group_frameworks_alphabetically(
     frameworks: List[Dict[str, Any]]
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
-    Group frameworks by first letter of their cleaned name.
-
+    Group frameworks by first letter.
+    
     Args:
         frameworks: List of framework dicts
-
+        
     Returns:
-        Dict mapping letters to list of frameworks
+        Dict mapping letter to list of frameworks
     """
-    grouped: Dict[str, List[Dict[str, Any]]] = {}
-
-    # Deduplicate by cleaned name first
-    seen_names = set()
-    unique_frameworks = []
-
+    grouped = {}
+    
     for fw in frameworks:
-        name = fw.get('name', '')
-        cleaned_name = _clean_framework_name(name)
-
-        if cleaned_name and cleaned_name not in seen_names:
-            seen_names.add(cleaned_name)
-            unique_frameworks.append({
-                **fw,
-                '_display_name': cleaned_name
-            })
-
-    # Sort by cleaned name
-    unique_frameworks.sort(key=lambda x: x.get('_display_name', '').upper())
-
-    # Group by first letter
-    for fw in unique_frameworks:
-        display_name = fw.get('_display_name', '')
-        if not display_name:
-            continue
-
-        first_char = display_name[0].upper()
-        if first_char.isalpha():
-            letter = first_char
-        else:
-            letter = "#"  # Non-alphabetic
-
-        if letter not in grouped:
-            grouped[letter] = []
-        grouped[letter].append(fw)
-
-    return grouped
+        name = fw.get('name', 'Unknown')
+        first_letter = name[0].upper() if name else '#'
+        
+        # Handle non-alphabetic characters
+        if not first_letter.isalpha():
+            first_letter = '#'
+        
+        if first_letter not in grouped:
+            grouped[first_letter] = []
+        
+        grouped[first_letter].append(fw)
+    
+    # Sort frameworks within each group
+    for letter in grouped:
+        grouped[letter].sort(key=lambda x: x.get('name', '').lower())
+    
+    # Return sorted by letter
+    return dict(sorted(grouped.items()))
 
 
-def render_framework_card(
+def render_framework_list_item(
     framework: Dict[str, Any],
-    show_details_btn: bool = True,
-    key_prefix: str = "fw_card"
-) -> Optional[int]:
+    show_metadata: bool = True,
+    key_prefix: str = ""
+) -> bool:
     """
-    Render a framework card for the library view.
-
+    Render a single framework list item.
+    
     Args:
         framework: Framework dict
-        show_details_btn: Whether to show "View Details" button
-        key_prefix: Unique key prefix
-
+        show_metadata: Whether to show metadata badges
+        key_prefix: Prefix for button key
+        
     Returns:
-        Framework ID if details button was clicked
+        True if clicked, False otherwise
     """
-    selected_id = None
-    display_name = framework.get('_display_name', framework.get('name', 'Unknown'))
-    fw_type = framework.get('type', '')
-    domains = framework.get('business_domains', '')
+    name = framework.get('name', 'Unknown')
     difficulty = framework.get('difficulty_level', 'intermediate')
+    fw_type = framework.get('type', 'General')
+    
+    # Color coding for difficulty
+    diff_color = {
+        'beginner': 'ðŸŸ¢',
+        'intermediate': 'ðŸŸ ',
+        'advanced': 'ðŸ”´'
+    }.get(difficulty.lower(), 'âšª')
+    
+    # Build display text
+    if show_metadata:
+        display = f"{name} {diff_color}"
+    else:
+        display = name
+    
+    return st.button(
+        f"â†’ {display}",
+        key=f"{key_prefix}fw_{framework.get('id')}",
+        use_container_width=True
+    )
 
-    # Card container
-    with st.container():
-        col1, col2 = st.columns([4, 1])
 
-        with col1:
-            st.markdown(f"**{display_name}**")
-            if fw_type:
-                st.caption(f"Type: {fw_type}")
-            if domains:
-                first_domain = domains.split(',')[0].strip() if domains else ''
-                if first_domain:
-                    st.caption(f"Domain: {first_domain}")
+def render_jump_links(letters: List[str]) -> Optional[str]:
+    """
+    Render alphabetical jump links.
+    
+    Args:
+        letters: List of available letters
+        
+    Returns:
+        Letter clicked, or None
+    """
+    st.markdown("âš¡ **Jump to:**")
+    
+    # Create columns for letters (show in rows of 13)
+    cols = st.columns(13)
+    clicked_letter = None
+    
+    for i, letter in enumerate(sorted(letters)):
+        col_idx = i % 13
+        with cols[col_idx]:
+            if st.button(letter, key=f"jump_{letter}", use_container_width=True):
+                clicked_letter = letter
+    
+    return clicked_letter
 
-        with col2:
-            if show_details_btn:
-                if st.button(
-                    "View",
-                    key=f"{key_prefix}_{framework.get('id', 0)}_view",
-                    type="secondary"
-                ):
-                    selected_id = framework.get('id')
 
-        st.markdown("---")
+def get_framework_navigation(
+    current_id: int,
+    all_frameworks: List[Dict[str, Any]]
+) -> Tuple[Optional[int], Optional[int]]:
+    """
+    Get previous and next framework IDs for navigation.
+    
+    Args:
+        current_id: Current framework ID
+        all_frameworks: List of all frameworks (sorted)
+        
+    Returns:
+        Tuple of (previous_id, next_id), None if at boundaries
+    """
+    # Find current index
+    current_idx = None
+    for i, fw in enumerate(all_frameworks):
+        if fw.get('id') == current_id:
+            current_idx = i
+            break
+    
+    if current_idx is None:
+        return None, None
+    
+    # Get previous and next
+    prev_id = all_frameworks[current_idx - 1].get('id') if current_idx > 0 else None
+    next_id = all_frameworks[current_idx + 1].get('id') if current_idx < len(all_frameworks) - 1 else None
+    
+    return prev_id, next_id
 
-    return selected_id
+
+def render_navigation_buttons(
+    prev_id: Optional[int],
+    next_id: Optional[int],
+    prev_name: Optional[str] = None,
+    next_name: Optional[str] = None
+) -> Optional[int]:
+    """
+    Render previous/next navigation buttons.
+    
+    Args:
+        prev_id: Previous framework ID
+        next_id: Next framework ID
+        prev_name: Previous framework name (optional)
+        next_name: Next framework name (optional)
+        
+    Returns:
+        Framework ID if navigation clicked, None otherwise
+    """
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    clicked_id = None
+    
+    with col1:
+        if prev_id:
+            label = f"â† Previous"
+            if prev_name:
+                label += f"\n{prev_name}"
+            if st.button(label, key="nav_prev", use_container_width=True):
+                clicked_id = prev_id
+    
+    with col3:
+        if next_id:
+            label = f"Next â†’"
+            if next_name:
+                label += f"\n{next_name}"
+            if st.button(label, key="nav_next", use_container_width=True):
+                clicked_id = next_id
+    
+    return clicked_id
+
+
+def get_framework_name_by_id(
+    framework_id: int,
+    all_frameworks: List[Dict[str, Any]]
+) -> str:
+    """
+    Get framework name by ID.
+    
+    Args:
+        framework_id: Framework ID
+        all_frameworks: List of all frameworks
+        
+    Returns:
+        Framework name or "Unknown"
+    """
+    for fw in all_frameworks:
+        if fw.get('id') == framework_id:
+            return fw.get('name', 'Unknown')
+    return 'Unknown'
