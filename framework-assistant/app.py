@@ -50,7 +50,7 @@ from handlers.discovery import handle_discovery, format_discovery_card
 from handlers.details import handle_details, handle_details_by_name, format_framework_card_detailed
 from handlers.sequencing import handle_sequencing, handle_sequencing_by_name
 from handlers.comparison import handle_comparison, handle_comparison_by_names
-from handlers.library import render_framework_library, init_library_state, navigate_to_framework
+from handlers.library import render_framework_library
 
 from components.framework_index import render_quick_search
 
