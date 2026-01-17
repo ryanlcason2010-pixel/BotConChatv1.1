@@ -279,14 +279,11 @@ def render_framework_card(
         expanded: Whether to show expanded view
     """
     framework_id = framework.get('id', 0)
-    
+
     # Create unique widget keys to avoid duplicates when same framework shown multiple times
     key_suffix = f"_{instance_id}" if instance_id else ""
     unique_key = f"{framework_id}{key_suffix}"
-    
-    # Create unique widget keys to avoid duplicates when same framework shown multiple times
-    key_suffix = f"_{instance_id}" if instance_id else ""
-    unique_key = f"{framework_id}{key_suffix}"
+
     name = format_framework_display_name(framework)  # Handle generic names
     difficulty = framework.get('difficulty_level', 'intermediate')
     domains = framework.get('business_domains', '')
@@ -370,10 +367,19 @@ def enhance_query_with_context(query: str, session: SessionManager) -> str:
         'are there', 'do you have other', 'something else'
     ]
 
+    # Keywords that indicate a specific request (should NOT be enhanced)
+    specific_intent_keywords = [
+        'tell me about', 'explain', 'what is', 'describe', 'details',
+        'how does', 'how do', 'how to', 'compare', 'vs', 'versus',
+        'before', 'after', 'sequence', 'prerequisite'
+    ]
+
     is_followup = any(indicator in query_lower for indicator in followup_indicators)
+    is_specific_request = any(keyword in query_lower for keyword in specific_intent_keywords)
     is_short = len(query.split()) < 6
 
-    if is_followup or (is_short and len(query) < 30):
+    # Only enhance if it's a follow-up OR it's short AND not a specific request
+    if is_followup or (is_short and len(query) < 30 and not is_specific_request):
         # Get the original problem description from history
         history = session.get_conversation_history()
 
@@ -405,7 +411,7 @@ def format_framework_display_name(framework: Dict[str, Any]) -> str:
     name = framework.get('name', 'Unknown Framework')
 
     # Check if it's a generic name like "Framework 1" or "Framework 10"
-    if re.match(r'^.+Framework \d+$', name):
+    if re.match(r'^Framework \d+$', name):
         # Try to create a better name from other fields
         use_case = framework.get('use_case', '')
         domains = framework.get('business_domains', '')
