@@ -740,10 +740,9 @@ def main():
 
         # Render library
         action = render_framework_library(
-            frameworks_list,
-            types,
-            domains
-        )
+        frameworks_list,
+        search_engine
+    )
 
         # Handle navigation to chat
         if action == 'chat':
