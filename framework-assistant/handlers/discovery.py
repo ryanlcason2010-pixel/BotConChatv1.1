@@ -5,10 +5,29 @@ This module handles framework discovery queries where users want to
 browse, search, or list available frameworks.
 """
 
+import re
 from typing import Dict, List, Any, Optional, Tuple
 
 from utils.llm import LLMClient, build_discovery_prompt
 from utils.search import SearchResult
+
+
+def _clean_framework_name(name: str) -> str:
+    """
+    Clean framework name by stripping trailing numbers.
+
+    Examples:
+        "Layer 3: IT Strategy Framework 4" -> "Layer 3: IT Strategy Framework"
+        "Technology-Enabled Delivery Framework 4" -> "Technology-Enabled Delivery Framework"
+        "SPIN Selling" -> "SPIN Selling" (no change)
+
+    Args:
+        name: Original framework name
+
+    Returns:
+        Cleaned name without trailing numbers
+    """
+    return re.sub(r'\s+\d+$', '', name or '')
 
 
 def handle_discovery(
@@ -37,8 +56,25 @@ def handle_discovery(
         response = _build_no_results_response(query, domains_filter, difficulty_filter)
         return response, []
 
-    # Extract framework data
-    frameworks = [result.framework_data for result in search_results]
+    # Extract framework data - DEDUPLICATE BY ID AND CLEANED NAME
+    # This handles both exact duplicates and numbered variants like:
+    # "Layer 3: IT Strategy Framework 1, 2, 3, 4" which are essentially the same
+    seen_ids = set()
+    seen_names = set()
+    frameworks = []
+    for result in search_results:
+        fw_data = result.framework_data
+        fw_id = fw_data.get('id')
+        fw_name = fw_data.get('name', '')
+        cleaned_name = _clean_framework_name(fw_name)
+
+        # Skip if we've seen this ID or cleaned name before
+        if fw_id in seen_ids or cleaned_name in seen_names:
+            continue
+
+        seen_ids.add(fw_id)
+        seen_names.add(cleaned_name)
+        frameworks.append(fw_data)
 
     # Build response using LLM
     system_prompt = """You are a helpful assistant presenting framework options.
