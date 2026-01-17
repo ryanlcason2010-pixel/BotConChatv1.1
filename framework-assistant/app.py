@@ -50,6 +50,9 @@ from handlers.discovery import handle_discovery, format_discovery_card
 from handlers.details import handle_details, handle_details_by_name, format_framework_card_detailed
 from handlers.sequencing import handle_sequencing, handle_sequencing_by_name
 from handlers.comparison import handle_comparison, handle_comparison_by_names
+from handlers.library import render_framework_library, init_library_state, navigate_to_framework
+
+from components.framework_index import render_quick_search
 
 
 # Load environment variables
@@ -397,8 +400,10 @@ def format_framework_display_name(framework: Dict[str, Any]) -> str:
     """
     Format framework name for display, handling generic names.
 
-    This fixes the issue where "Framework 1", "Framework 10", etc.
-    appear instead of meaningful names.
+    This fixes issues where:
+    - "Framework 1", "Framework 10" appear instead of meaningful names
+    - "Layer 3: IT Strategy Framework 4" should be "Layer 3: IT Strategy Framework"
+    - "Technology-Enabled Delivery Framework 4" should be "Technology-Enabled Delivery Framework"
 
     Args:
         framework: Framework data dict
@@ -410,8 +415,12 @@ def format_framework_display_name(framework: Dict[str, Any]) -> str:
 
     name = framework.get('name', 'Unknown Framework')
 
-    # Check if it's a generic name like "Framework 1" or "Framework 10"
-    if re.match(r'^Framework \d+$', name):
+    # Strip trailing numbers from framework names (e.g., "Framework Name 4" -> "Framework Name")
+    # This handles patterns like "Attribution Framework 1", "Layer 3: IT Strategy Framework 4"
+    cleaned_name = re.sub(r'\s+\d+$', '', name)
+
+    # Check if it's ONLY a generic name like "Framework" after stripping numbers
+    if re.match(r'^Framework$', cleaned_name) or re.match(r'^Framework \d+$', name):
         # Try to create a better name from other fields
         use_case = framework.get('use_case', '')
         domains = framework.get('business_domains', '')
@@ -431,7 +440,7 @@ def format_framework_display_name(framework: Dict[str, Any]) -> str:
         else:
             return f"Framework #{framework.get('id', '?')}"
 
-    return name
+    return cleaned_name
 
 
 def process_query(
@@ -610,99 +619,136 @@ def main():
     st.title("Framework Assistant")
     st.markdown("*Navigate your framework library through natural conversation*")
 
-    # Chat interface
-    st.markdown("---")
+    # Initialize library state
+    init_library_state()
 
-    # Render chat history
-    render_chat_history(session)
+    # Create tabs
+    tab1, tab2 = st.tabs(["Chat", "Framework Library"])
 
-    # Show frameworks from last response
-    if st.session_state.show_frameworks:
-        st.subheader("Relevant Frameworks")
-        for i, fw in enumerate(st.session_state.show_frameworks):
-            render_framework_card(fw, session, expanded=False, instance_id=f"main_{i}")
+    # Chat Tab
+    with tab1:
+        # Check for prefilled query from library navigation
+        prefilled_query = st.session_state.pop('prefilled_query', None)
 
-    # Chat input
-    user_query = st.chat_input("Describe your client situation or ask about frameworks...")
+        # Chat interface
+        st.markdown("---")
 
-    if user_query:
-        # Add user message
-        session.add_message("user", user_query)
-        session.set_last_query(user_query)
+        # Render chat history
+        render_chat_history(session)
 
-        # Display user message
-        with st.chat_message("user"):
-            st.markdown(user_query)
-
-        # Process query
-        with st.spinner("Thinking..."):
-            response, frameworks = process_query(
-                user_query,
-                session,
-                search_engine,
-                llm_client,
-                embedding_engine,
-                df,
-                selected_domains,
-                selected_difficulty,
-                selected_type
-            )
-
-        # Add assistant response
-        session.add_message("assistant", response, {
-            'frameworks_shown': [f.get('id') for f in frameworks],
-            'intent': detect_intent(user_query)[0]
-        })
-
-        # Update state
-        st.session_state.show_frameworks = frameworks
-
-        # Record viewed frameworks
-        for fw in frameworks:
-            session.add_framework_viewed(fw.get('name', 'Unknown'), fw.get('id', 0))
-
-        # Display response
-        with st.chat_message("assistant"):
-            st.markdown(response)
-
-        # Display framework cards
-        if frameworks:
+        # Show frameworks from last response
+        if st.session_state.show_frameworks:
             st.subheader("Relevant Frameworks")
-            for i, fw in enumerate(frameworks):
-                render_framework_card(fw, session, expanded=False, instance_id=f"results_{i}")
+            for i, fw in enumerate(st.session_state.show_frameworks):
+                render_framework_card(fw, session, expanded=False, instance_id=f"main_{i}")
 
-        st.rerun()
+        # Chat input
+        default_value = prefilled_query if prefilled_query else ""
+        user_query = st.chat_input(
+            "Describe your client situation or ask about frameworks...",
+            key="chat_input"
+        )
 
-    # Help section
-    with st.expander("How to use Framework Assistant"):
-        st.markdown("""
-        **Query Types:**
+        # Handle prefilled query
+        if prefilled_query and not user_query:
+            user_query = prefilled_query
 
-        1. **Diagnostic** - Describe a problem and get framework recommendations
-           - *"Client has high employee turnover"*
-           - *"Struggling with low conversion rates"*
+        if user_query:
+            # Add user message
+            session.add_message("user", user_query)
+            session.set_last_query(user_query)
 
-        2. **Discovery** - Browse and search frameworks
-           - *"Show me all sales frameworks"*
-           - *"What frameworks do you have for strategy?"*
+            # Display user message
+            with st.chat_message("user"):
+                st.markdown(user_query)
 
-        3. **Details** - Learn about a specific framework
-           - *"Tell me about SPIN Selling"*
-           - *"Explain the MEDDIC framework"*
+            # Process query
+            with st.spinner("Thinking..."):
+                response, frameworks = process_query(
+                    user_query,
+                    session,
+                    search_engine,
+                    llm_client,
+                    embedding_engine,
+                    df,
+                    selected_domains,
+                    selected_difficulty,
+                    selected_type
+                )
 
-        4. **Sequencing** - Understand framework order
-           - *"What should I do before MEDDIC?"*
-           - *"What comes after customer discovery?"*
+            # Add assistant response
+            session.add_message("assistant", response, {
+                'frameworks_shown': [f.get('id') for f in frameworks],
+                'intent': detect_intent(user_query)[0]
+            })
 
-        5. **Comparison** - Compare two frameworks
-           - *"Compare SPIN Selling vs Consultative Selling"*
-           - *"What's the difference between OKRs and KPIs?"*
+            # Update state
+            st.session_state.show_frameworks = frameworks
 
-        **Tips:**
-        - Use the sidebar filters to narrow down results
-        - Click thumbs up/down on frameworks to improve recommendations
-        - Click "Start Fresh" to begin a new conversation
-        """)
+            # Record viewed frameworks
+            for fw in frameworks:
+                session.add_framework_viewed(fw.get('name', 'Unknown'), fw.get('id', 0))
+
+            # Display response
+            with st.chat_message("assistant"):
+                st.markdown(response)
+
+            # Display framework cards
+            if frameworks:
+                st.subheader("Relevant Frameworks")
+                for i, fw in enumerate(frameworks):
+                    render_framework_card(fw, session, expanded=False, instance_id=f"results_{i}")
+
+            st.rerun()
+
+        # Help section
+        with st.expander("How to use Framework Assistant"):
+            st.markdown("""
+            **Query Types:**
+
+            1. **Diagnostic** - Describe a problem and get framework recommendations
+               - *"Client has high employee turnover"*
+               - *"Struggling with low conversion rates"*
+
+            2. **Discovery** - Browse and search frameworks
+               - *"Show me all sales frameworks"*
+               - *"What frameworks do you have for strategy?"*
+
+            3. **Details** - Learn about a specific framework
+               - *"Tell me about SPIN Selling"*
+               - *"Explain the MEDDIC framework"*
+
+            4. **Sequencing** - Understand framework order
+               - *"What should I do before MEDDIC?"*
+               - *"What comes after customer discovery?"*
+
+            5. **Comparison** - Compare two frameworks
+               - *"Compare SPIN Selling vs Consultative Selling"*
+               - *"What's the difference between OKRs and KPIs?"*
+
+            **Tips:**
+            - Use the sidebar filters to narrow down results
+            - Click thumbs up/down on frameworks to improve recommendations
+            - Click "Start Fresh" to begin a new conversation
+            - Use the **Framework Library** tab to browse all frameworks
+            """)
+
+    # Framework Library Tab
+    with tab2:
+        # Convert DataFrame to list of dicts for library
+        frameworks_list = df.to_dict('records')
+
+        # Render library
+        action = render_framework_library(
+            frameworks_list,
+            types,
+            domains
+        )
+
+        # Handle navigation to chat
+        if action == 'chat':
+            st.rerun()
+
 
 
 if __name__ == "__main__":
