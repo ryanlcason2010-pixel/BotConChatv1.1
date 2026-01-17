@@ -620,7 +620,7 @@ def main():
     st.markdown("*Navigate your framework library through natural conversation*")
 
     # Initialize library state
-    init_library_state()
+    
 
     # Create tabs
     tab1, tab2 = st.tabs(["Chat", "Framework Library"])
