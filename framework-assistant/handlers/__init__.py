@@ -15,7 +15,7 @@ from .discovery import handle_discovery
 from .details import handle_details
 from .sequencing import handle_sequencing
 from .comparison import handle_comparison
-from .library import render_framework_library
+from .library_clean import render_framework_library
 
 __all__ = [
     'handle_diagnostic',
