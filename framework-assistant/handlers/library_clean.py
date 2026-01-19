@@ -8,7 +8,7 @@ filtering, and detail page views.
 from typing import Dict, List, Any, Optional, Tuple
 import streamlit as st
 
-from components.framework_index import (
+from components.framework_index_clean import (
     group_frameworks_alphabetically,
     render_framework_list_item,
     get_framework_navigation,
